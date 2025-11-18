@@ -50,7 +50,7 @@ local function notify(title, message, duration)
 		titleLabel.Size = UDim2.new(1, -20, 0, 28)
 		titleLabel.Position = UDim2.new(0, 10, 0, 8)
 		titleLabel.BackgroundTransparency = 1
-		titleLabel.Text = "🔴 " .. title
+		titleLabel.Text = title
 		titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		titleLabel.Font = Enum.Font.GothamBold
 		titleLabel.TextSize = 16
@@ -153,7 +153,7 @@ local title = Instance.new("TextLabel", titleBar)
 title.Size = UDim2.new(1, -120, 1, 0)
 title.Position = UDim2.new(0, 15, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🔴 CLIFFORD'S ADMIN"
+title.Text = "CLIFFORD'S ADMIN"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 22
@@ -189,7 +189,7 @@ local closeBtn = Instance.new("TextButton", titleBar)
 closeBtn.Size = UDim2.new(0, 40, 0, 40)
 closeBtn.Position = UDim2.new(1, -50, 0, 10)
 closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-closeBtn.Text = "✕"
+closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.new(1, 1, 1)
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 20
@@ -247,11 +247,11 @@ end)
 local tabs = {}
 local currentTab = nil
 
-local function createTab(name, icon)
+local function createTab(name)
 	local btn = Instance.new("TextButton", tabContainer)
 	btn.Size = UDim2.new(0, 100, 0, 40)
 	btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	btn.Text = icon .. " " .. name
+	btn.Text = name
 	btn.TextColor3 = Color3.fromRGB(200, 200, 200)
 	btn.Font = Enum.Font.GothamBold
 	btn.TextSize = 13
@@ -507,10 +507,10 @@ end
 -----------------------------
 -- CREATE TABS
 -----------------------------
-local movementTab = createTab("Movement", "✈️")
-local playerTab = createTab("Player", "👤")
-local teleportTab = createTab("Teleport", "🎯")
-local miscTab = createTab("Misc", "⚙️")
+local movementTab = createTab("Movement")
+local playerTab = createTab("Player")
+local teleportTab = createTab("Teleport")
+local miscTab = createTab("Misc")
 
 -----------------------------
 -- CONNECTION STORAGE
@@ -527,7 +527,7 @@ movementTab.button.BackgroundColor3 = Color3.fromRGB(190, 0, 0)
 movementTab.button.TextColor3 = Color3.new(1, 1, 1)
 currentTab = movementTab
 
-addLabel("✈️ Flight Controls")
+addLabel("Flight Controls")
 
 addToggleButton("Fly Mode", 
 	function() -- ON
@@ -602,7 +602,7 @@ addSlider("Fly Speed", 50, 300, 100, function(value)
 	Config.FlySpeed = value
 end)
 
-addLabel("🚫 Collision")
+addLabel("Collision")
 
 addToggleButton("Noclip",
 	function() -- ON
@@ -647,7 +647,7 @@ addToggleButton("Noclip",
 	end
 )
 
-addLabel("🏃 Speed Controls")
+addLabel("Speed Controls")
 
 addSlider("Walk Speed", 16, 250, 16, function(value)
 	pcall(function()
@@ -678,7 +678,7 @@ end)
 -----------------------------
 currentTab = playerTab
 
-addLabel("❤️ Health Management")
+addLabel("Health Management")
 
 addToggleButton("Loop Heal",
 	function() -- ON
@@ -732,4 +732,312 @@ addToggleButton("God Mode (Client)",
 	end
 )
 
-addButton("💊 Instant
+addButton("Instant Heal", function()
+	pcall(function()
+		if LocalPlayer.Character then
+			local hum = getHumanoid(LocalPlayer.Character)
+			if hum then 
+				hum.Health = hum.MaxHealth 
+				notify("Heal", "Fully healed!")
+			end
+		end
+	end)
+end)
+
+addLabel("Character Modification")
+
+addSlider("Character Size", 0.5, 3, 1, function(value)
+	pcall(function()
+		local char = LocalPlayer.Character
+		if not char then return end
+		
+		local hum = getHumanoid(char)
+		if hum and r15(LocalPlayer) then
+			hum.BodyDepthScale.Value = value
+			hum.BodyHeightScale.Value = value
+			hum.BodyWidthScale.Value = value
+			hum.HeadScale.Value = value
+		end
+	end)
+end)
+
+addButton("Reset Character", function()
+	pcall(function()
+		if LocalPlayer.Character then
+			local hum = getHumanoid(LocalPlayer.Character)
+			if hum then
+				hum.Health = 0
+				notify("Reset", "Character reset")
+			end
+		end
+	end)
+end)
+
+-----------------------------
+-- TELEPORT TAB
+-----------------------------
+currentTab = teleportTab
+
+addLabel("Player Teleportation")
+
+local gotoBox = addBox("Enter Player Name")
+
+addToggleButton("Loop Goto Player",
+	function() -- ON
+		_G.loopGoto = true
+		notify("Loop Goto", "Enabled")
+		
+		task.spawn(function()
+			while _G.loopGoto do
+				task.wait(0.2)
+
+				local targetName = gotoBox.Text:lower()
+				if targetName == "" then continue end
+				
+				for _, p in pairs(Players:GetPlayers()) do
+					if p.Name:lower():find(targetName) and p ~= LocalPlayer then
+						pcall(function()
+							if not p.Character then return end
+							
+							local tRoot = getRoot(p.Character)
+							local root = getRoot(LocalPlayer.Character)
+							
+							if root and tRoot then
+								root.CFrame = tRoot.CFrame * CFrame.new(0, 3, 0)
+							end
+						end)
+						break
+					end
+				end
+			end
+		end)
+	end,
+	function() -- OFF
+		_G.loopGoto = false
+		notify("Loop Goto", "Disabled")
+	end
+)
+
+addButton("Teleport Once", function()
+	local targetName = gotoBox.Text:lower()
+	if targetName == "" then 
+		notify("Error", "Enter a player name")
+		return 
+	end
+	
+	for _, p in pairs(Players:GetPlayers()) do
+		if p.Name:lower():find(targetName) and p ~= LocalPlayer then
+			pcall(function()
+				if not p.Character then return end
+				
+				local tRoot = getRoot(p.Character)
+				local root = getRoot(LocalPlayer.Character)
+				
+				if root and tRoot then
+					root.CFrame = tRoot.CFrame * CFrame.new(0, 3, 0)
+					notify("Teleport", "Teleported to " .. p.Name)
+				end
+			end)
+			return
+		end
+	end
+	notify("Error", "Player not found")
+end)
+
+addLabel("Position Teleportation")
+
+local xBox = addBox("X Position")
+local yBox = addBox("Y Position")
+local zBox = addBox("Z Position")
+
+addButton("Teleport to Coordinates", function()
+	local x = tonumber(xBox.Text)
+	local y = tonumber(yBox.Text)
+	local z = tonumber(zBox.Text)
+	
+	if not x or not y or not z then
+		notify("Error", "Invalid coordinates")
+		return
+	end
+	
+	pcall(function()
+		if LocalPlayer.Character then
+			local root = getRoot(LocalPlayer.Character)
+			if root then
+				root.CFrame = CFrame.new(x, y, z)
+				notify("Teleport", "Teleported to coordinates")
+			end
+		end
+	end)
+end)
+
+-----------------------------
+-- MISC TAB
+-----------------------------
+currentTab = miscTab
+
+addLabel("Animations")
+
+local animBox = addBox("Animation ID")
+
+addButton("Play Animation", function()
+	local id = tonumber(animBox.Text)
+	if not id then 
+		notify("Error", "Invalid animation ID")
+		return 
+	end
+	
+	pcall(function()
+		if LocalPlayer.Character then
+			local hum = getHumanoid(LocalPlayer.Character)
+			if hum then
+				local animator = hum:FindFirstChildOfClass("Animator")
+				if not animator then
+					animator = Instance.new("Animator")
+					animator.Parent = hum
+				end
+				
+				local anim = Instance.new("Animation")
+				anim.AnimationId = "rbxassetid://" .. id
+				
+				local animTrack = animator:LoadAnimation(anim)
+				animTrack:Play()
+				
+				notify("Animation", "Playing animation: " .. id)
+			else
+				notify("Error", "Humanoid not found")
+			end
+		else
+			notify("Error", "Character not found")
+		end
+	end)
+end)
+
+addButton("Stop All Animations", function()
+	pcall(function()
+		if LocalPlayer.Character then
+			local hum = getHumanoid(LocalPlayer.Character)
+			if hum then
+				local animator = hum:FindFirstChildOfClass("Animator")
+				if animator then
+					for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+						track:Stop()
+					end
+					notify("Animation", "Stopped all animations")
+				end
+			end
+		end
+	end)
+end)
+
+addLabel("Environment")
+
+addSlider("Time of Day", 0, 24, 12, function(value)
+	pcall(function()
+		game:GetService("Lighting").ClockTime = value
+	end)
+end)
+
+addSlider("Brightness", 0, 5, 1, function(value)
+	pcall(function()
+		game:GetService("Lighting").Brightness = value
+	end)
+end)
+
+addButton("Remove Fog", function()
+	pcall(function()
+		local lighting = game:GetService("Lighting")
+		lighting.FogEnd = 100000
+		lighting.FogStart = 0
+		notify("Environment", "Fog removed")
+	end)
+end)
+
+addLabel("Utility")
+
+addButton("Rejoin Server", function()
+	pcall(function()
+		local ts = game:GetService("TeleportService")
+		local p = game:GetService("Players").LocalPlayer
+		ts:Teleport(game.PlaceId, p)
+	end)
+end)
+
+addButton("Server Hop", function()
+	pcall(function()
+		local Http = game:GetService("HttpService")
+		local TPS = game:GetService("TeleportService")
+		local Api = "https://games.roblox.com/v1/games/"
+		
+		local _place = game.PlaceId
+		local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
+		
+		local function ListServers()
+			local Raw = game:HttpGet(_servers)
+			local Body = Http:JSONDecode(Raw)
+			return Body.data
+		end
+		
+		local servers = ListServers()
+		if #servers > 0 then
+			TPS:TeleportToPlaceInstance(_place, servers[math.random(1, #servers)].id, LocalPlayer)
+		end
+		
+		notify("Server Hop", "Finding new server...")
+	end)
+end)
+
+addButton("Copy Game ID", function()
+	pcall(function()
+		setclipboard(tostring(game.PlaceId))
+		notify("Clipboard", "Game ID copied: " .. game.PlaceId)
+	end)
+end)
+
+addButton("Copy User ID", function()
+	pcall(function()
+		setclipboard(tostring(LocalPlayer.UserId))
+		notify("Clipboard", "User ID copied: " .. LocalPlayer.UserId)
+	end)
+end)
+
+-----------------------------
+-- HOTKEY TOGGLE SYSTEM
+-----------------------------
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	
+	if input.KeyCode == Config.ToggleKey then
+		main.Visible = not main.Visible
+		if main.Visible then
+			notify("Menu", "Opened")
+		else
+			notify("Menu", "Closed")
+		end
+	end
+end)
+
+-----------------------------
+-- CLEANUP ON CHARACTER RESPAWN
+-----------------------------
+LocalPlayer.CharacterAdded:Connect(function()
+	-- Reset all toggles
+	Config.FlyEnabled = false
+	_G.Noclip = false
+	_G.LoopHeal = false
+	_G.loopGoto = false
+	
+	-- Cleanup connections
+	if noclipConnection then
+		noclipConnection:Disconnect()
+		noclipConnection = nil
+	end
+	
+	if flyBodyVelocity then flyBodyVelocity:Destroy() end
+	if flyBodyGyro then flyBodyGyro:Destroy() end
+end)
+
+-----------------------------
+-- INITIAL LOAD
+-----------------------------
+notify("Clifford's Menu", "Loaded successfully! Press RightShift to toggle", 5)
