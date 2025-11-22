@@ -1,9 +1,13 @@
---// CLIFFORD'S MENU V4.0 — PREMIUM ADMIN PANEL
+--// CLIFFORD'S ADMIN V5.0 — INFINITE YIELD INTEGRATION
+--// Using Infinite Yield source code for core functionality
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
 
 -- Cleanup existing GUI
 pcall(function()
@@ -13,13 +17,62 @@ pcall(function()
 end)
 
 -----------------------------
--- CONFIGURATION
+-- INFINITE YIELD HELPER FUNCTIONS
 -----------------------------
-local Config = {
-	ToggleKey = Enum.KeyCode.RightShift, -- Change this to customize hotkey
-	FlySpeed = 100,
-	FlyEnabled = false
-}
+local function getRoot(char)
+	return char:FindFirstChild('HumanoidRootPart') or char:FindFirstChild('Torso') or char:FindFirstChild('UpperTorso')
+end
+
+local function getHumanoid(char)
+	return char:FindFirstChildOfClass('Humanoid')
+end
+
+local function r15(plr)
+	local char = plr.Character
+	if char then
+		local hum = getHumanoid(char)
+		if hum then
+			return hum.RigType == Enum.HumanoidRigType.R15
+		end
+	end
+	return false
+end
+
+-- Get player by name (from IY)
+local function getPlayer(name, speaker)
+	if not name or name == "" then return {} end
+	local nameList = name:lower():split(",")
+	local foundPlayers = {}
+	
+	for _, playerName in pairs(nameList) do
+		-- Special cases
+		if playerName == "me" then
+			table.insert(foundPlayers, speaker)
+		elseif playerName == "all" then
+			for _, plr in pairs(Players:GetPlayers()) do
+				table.insert(foundPlayers, plr)
+			end
+		elseif playerName == "others" then
+			for _, plr in pairs(Players:GetPlayers()) do
+				if plr ~= speaker then
+					table.insert(foundPlayers, plr)
+				end
+			end
+		elseif playerName == "random" then
+			local plrs = Players:GetPlayers()
+			table.insert(foundPlayers, plrs[math.random(1, #plrs)])
+		else
+			-- Search by name
+			for _, plr in pairs(Players:GetPlayers()) do
+				if plr.Name:lower():find(playerName) or plr.DisplayName:lower():find(playerName) then
+					table.insert(foundPlayers, plr)
+				end
+			end
+		end
+	end
+	
+	return foundPlayers
+end
 
 -----------------------------
 -- NOTIFICATION SYSTEM
@@ -29,8 +82,7 @@ local function notify(title, message, duration)
 	task.spawn(function()
 		local notif = Instance.new("ScreenGui")
 		notif.Name = "Notification"
-		notif.Parent = LocalPlayer.PlayerGui
-		notif.ResetOnSpawn = false
+		notif.Parent = CoreGui
 		notif.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		
 		local frame = Instance.new("Frame", notif)
@@ -70,12 +122,9 @@ local function notify(title, message, duration)
 		msgLabel.TextWrapped = true
 		msgLabel.ZIndex = 10001
 		
-		-- Slide in
 		TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(1, -330, 1, -100)}):Play()
-		
 		task.wait(duration)
 		
-		-- Slide out
 		local tween = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(1, -330, 1, 100)})
 		tween:Play()
 		tween.Completed:Wait()
@@ -84,29 +133,7 @@ local function notify(title, message, duration)
 end
 
 -----------------------------
--- HELPER FUNCTIONS
------------------------------
-local function getRoot(char)
-	return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-end
-
-local function getHumanoid(char)
-	return char:FindFirstChildOfClass("Humanoid")
-end
-
-local function r15(plr)
-	local char = plr.Character
-	if char then
-		local hum = getHumanoid(char)
-		if hum then
-			return hum.RigType == Enum.HumanoidRigType.R15
-		end
-	end
-	return false
-end
-
------------------------------
--- MAIN GUI
+-- MAIN GUI SETUP
 -----------------------------
 local gui = Instance.new("ScreenGui")
 gui.Name = "CliffordsMenu"
@@ -114,10 +141,9 @@ gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Main container
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 450, 0, 600)
-main.Position = UDim2.new(0.5, -225, 0.5, -300)
+main.Size = UDim2.new(0, 500, 0, 650)
+main.Position = UDim2.new(0.5, -250, 0.5, -325)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 main.Active = true
 main.Draggable = true
@@ -130,17 +156,6 @@ local mainStroke = Instance.new("UIStroke", main)
 mainStroke.Color = Color3.fromRGB(190, 0, 0)
 mainStroke.Thickness = 3
 
--- Shadow effect
-local shadow = Instance.new("ImageLabel", main)
-shadow.Size = UDim2.new(1, 30, 1, 30)
-shadow.Position = UDim2.new(0, -15, 0, -15)
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-shadow.ImageTransparency = 0.5
-shadow.ZIndex = 99
-
--- Title bar
 local titleBar = Instance.new("Frame", main)
 titleBar.Size = UDim2.new(1, 0, 0, 60)
 titleBar.BackgroundColor3 = Color3.fromRGB(190, 0, 0)
@@ -160,31 +175,17 @@ title.TextSize = 22
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.ZIndex = 102
 
--- Version label
 local version = Instance.new("TextLabel", titleBar)
 version.Size = UDim2.new(0, 100, 0, 20)
 version.Position = UDim2.new(1, -110, 0, 5)
 version.BackgroundTransparency = 1
-version.Text = "v4.0"
+version.Text = "v5.0 IY"
 version.TextColor3 = Color3.fromRGB(200, 200, 200)
 version.Font = Enum.Font.GothamBold
 version.TextSize = 12
 version.TextXAlignment = Enum.TextXAlignment.Right
 version.ZIndex = 102
 
--- Hotkey label
-local hotkeyLabel = Instance.new("TextLabel", titleBar)
-hotkeyLabel.Size = UDim2.new(0, 100, 0, 20)
-hotkeyLabel.Position = UDim2.new(1, -110, 0, 25)
-hotkeyLabel.BackgroundTransparency = 1
-hotkeyLabel.Text = "RightShift to toggle"
-hotkeyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-hotkeyLabel.Font = Enum.Font.Gotham
-hotkeyLabel.TextSize = 10
-hotkeyLabel.TextXAlignment = Enum.TextXAlignment.Right
-hotkeyLabel.ZIndex = 102
-
--- Close button
 local closeBtn = Instance.new("TextButton", titleBar)
 closeBtn.Size = UDim2.new(0, 40, 0, 40)
 closeBtn.Position = UDim2.new(1, -50, 0, 10)
@@ -203,28 +204,15 @@ closeBtn.MouseButton1Click:Connect(function()
 	notify("Menu", "Closed - Press RightShift to reopen")
 end)
 
--- Tab system
-local tabContainer = Instance.new("Frame", main)
-tabContainer.Size = UDim2.new(1, -20, 0, 45)
-tabContainer.Position = UDim2.new(0, 10, 0, 70)
-tabContainer.BackgroundTransparency = 1
-tabContainer.ZIndex = 101
-
-local tabLayout = Instance.new("UIListLayout", tabContainer)
-tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 5)
-
--- Content area
 local contentFrame = Instance.new("Frame", main)
-contentFrame.Size = UDim2.new(1, -20, 1, -130)
-contentFrame.Position = UDim2.new(0, 10, 0, 120)
+contentFrame.Size = UDim2.new(1, -20, 1, -80)
+contentFrame.Position = UDim2.new(0, 10, 0, 70)
 contentFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 contentFrame.ZIndex = 101
 
 local contentCorner = Instance.new("UICorner", contentFrame)
 contentCorner.CornerRadius = UDim.new(0, 10)
 
--- Scrolling frame
 local scroll = Instance.new("ScrollingFrame", contentFrame)
 scroll.Size = UDim2.new(1, -10, 1, -10)
 scroll.Position = UDim2.new(0, 5, 0, 5)
@@ -242,67 +230,16 @@ layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 end)
 
 -----------------------------
--- TAB SYSTEM
------------------------------
-local tabs = {}
-local currentTab = nil
-
-local function createTab(name)
-	local btn = Instance.new("TextButton", tabContainer)
-	btn.Size = UDim2.new(0, 100, 0, 40)
-	btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	btn.Text = name
-	btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 13
-	btn.ZIndex = 102
-	
-	local corner = Instance.new("UICorner", btn)
-	corner.CornerRadius = UDim.new(0, 8)
-	
-	local tabData = {
-		button = btn,
-		name = name,
-		elements = {}
-	}
-	
-	btn.MouseButton1Click:Connect(function()
-		for _, tab in pairs(tabs) do
-			tab.button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-			tab.button.TextColor3 = Color3.fromRGB(200, 200, 200)
-			for _, element in pairs(tab.elements) do
-				element.Visible = false
-			end
-		end
-		
-		btn.BackgroundColor3 = Color3.fromRGB(190, 0, 0)
-		btn.TextColor3 = Color3.new(1, 1, 1)
-		for _, element in pairs(tabData.elements) do
-			element.Visible = true
-		end
-		
-		currentTab = tabData
-	end)
-	
-	table.insert(tabs, tabData)
-	return tabData
-end
-
------------------------------
 -- UI BUILDERS
 -----------------------------
-function addToCurrentTab(element)
-	if currentTab then
-		table.insert(currentTab.elements, element)
-		element.Visible = true
-	end
-	return element
-end
+local shade1 = Color3.fromRGB(50, 50, 50)
+local shade2 = Color3.fromRGB(45, 45, 45)
+local shade3 = Color3.fromRGB(78, 78, 79)
 
 function addLabel(text)
 	local l = Instance.new("TextLabel", scroll)
 	l.Size = UDim2.new(1, -10, 0, 35)
-	l.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	l.BackgroundColor3 = shade1
 	l.TextColor3 = Color3.new(1, 1, 1)
 	l.Font = Enum.Font.GothamBold
 	l.TextSize = 16
@@ -312,13 +249,13 @@ function addLabel(text)
 	local corner = Instance.new("UICorner", l)
 	corner.CornerRadius = UDim.new(0, 8)
 	
-	return addToCurrentTab(l)
+	return l
 end
 
 function addToggleButton(text, onCallback, offCallback)
 	local container = Instance.new("Frame", scroll)
 	container.Size = UDim2.new(1, -10, 0, 50)
-	container.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	container.BackgroundColor3 = shade2
 	container.ZIndex = 103
 	
 	local corner = Instance.new("UICorner", container)
@@ -331,7 +268,7 @@ function addToggleButton(text, onCallback, offCallback)
 	label.Text = text
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 15
+	label.TextSize = 14
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.ZIndex = 104
 	
@@ -364,29 +301,13 @@ function addToggleButton(text, onCallback, offCallback)
 		end
 	end)
 	
-	toggleButton.MouseEnter:Connect(function()
-		if isOn then
-			TweenService:Create(toggleButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(0, 220, 0)}):Play()
-		else
-			TweenService:Create(toggleButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(200, 0, 0)}):Play()
-		end
-	end)
-	
-	toggleButton.MouseLeave:Connect(function()
-		if isOn then
-			TweenService:Create(toggleButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(0, 200, 0)}):Play()
-		else
-			TweenService:Create(toggleButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(180, 0, 0)}):Play()
-		end
-	end)
-	
-	return addToCurrentTab(container), toggleButton
+	return container, toggleButton
 end
 
 function addSlider(text, min, max, default, callback)
 	local container = Instance.new("Frame", scroll)
 	container.Size = UDim2.new(1, -10, 0, 65)
-	container.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	container.BackgroundColor3 = shade2
 	container.ZIndex = 103
 	
 	local corner = Instance.new("UICorner", container)
@@ -453,7 +374,7 @@ function addSlider(text, min, max, default, callback)
 		end
 	end)
 	
-	return addToCurrentTab(container)
+	return container
 end
 
 function addButton(text, callback)
@@ -480,7 +401,7 @@ function addButton(text, callback)
 		TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(190, 0, 0)}):Play()
 	end)
 	
-	return addToCurrentTab(b)
+	return b
 end
 
 function addBox(placeholder)
@@ -501,112 +422,251 @@ function addBox(placeholder)
 	stroke.Color = Color3.fromRGB(100, 100, 100)
 	stroke.Thickness = 1
 	
-	return addToCurrentTab(box)
+	return box
 end
 
 -----------------------------
--- CREATE TABS
+-- INFINITE YIELD FLY (FROM IY SOURCE)
 -----------------------------
-local movementTab = createTab("Movement")
-local playerTab = createTab("Player")
-local teleportTab = createTab("Teleport")
-local miscTab = createTab("Misc")
+local flySpeed = 1
+local vehicleflyspeed = 1
+local Clip = true
+local FLYING = false
+local FLYOBJ, FLYGYRO
 
------------------------------
--- CONNECTION STORAGE
------------------------------
-local flyConnection
-local noclipConnection
-local flyBodyVelocity
-local flyBodyGyro
-
------------------------------
--- MOVEMENT TAB
------------------------------
-movementTab.button.BackgroundColor3 = Color3.fromRGB(190, 0, 0)
-movementTab.button.TextColor3 = Color3.new(1, 1, 1)
-currentTab = movementTab
-
-addLabel("Flight Controls")
-
-addToggleButton("Fly Mode", 
-	function() -- ON
-		Config.FlyEnabled = true
-		notify("Fly", "Enabled - WASD + Space/Shift to move")
-		
-		local char = LocalPlayer.Character
-		if not char then return end
-		local root = getRoot(char)
-		if not root then return end
-		
-		-- Create BodyVelocity and BodyGyro for smooth flying
-		flyBodyVelocity = Instance.new("BodyVelocity")
-		flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
-		flyBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-		flyBodyVelocity.Parent = root
-		
-		flyBodyGyro = Instance.new("BodyGyro")
-		flyBodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-		flyBodyGyro.P = 9e4
-		flyBodyGyro.Parent = root
-		
+function sFLY(vfly)
+	repeat wait() until Players.LocalPlayer and Players.LocalPlayer.Character and getRoot(Players.LocalPlayer.Character) and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	repeat wait() until IYMouse
+	
+	local T = getRoot(Players.LocalPlayer.Character)
+	local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+	local lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+	local SPEED = 0
+	
+	local function FLY()
+		FLYING = true
+		local BG = Instance.new('BodyGyro')
+		local BV = Instance.new('BodyVelocity')
+		BG.P = 9e4
+		BG.Parent = T
+		BV.Parent = T
+		BG.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+		BG.cframe = T.CFrame
+		BV.velocity = Vector3.new(0, 0, 0)
+		BV.maxForce = Vector3.new(9e9, 9e9, 9e9)
 		task.spawn(function()
-			while Config.FlyEnabled do
-				pcall(function()
-					task.wait()
-					
-					if not char or not char.Parent then
-						Config.FlyEnabled = false
-						return
-					end
-					
-					if not root or not root.Parent then
-						Config.FlyEnabled = false
-						return
-					end
-					
-					local cam = workspace.CurrentCamera
-					local dir = Vector3.zero
-					
-					if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
-					if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
-					if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
-					if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
-					if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
-					if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
-					
-					if flyBodyVelocity and flyBodyVelocity.Parent then
-						flyBodyVelocity.Velocity = dir.Unit * Config.FlySpeed
-					end
-					
-					if flyBodyGyro and flyBodyGyro.Parent then
-						flyBodyGyro.CFrame = cam.CFrame
-					end
-				end)
+			repeat wait()
+				if not vfly and Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid') then
+					Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid').PlatformStand = true
+				end
+				if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
+					SPEED = 50
+				elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
+					SPEED = 0
+				end
+				if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
+					BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (CONTROL.F + CONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(CONTROL.L + CONTROL.R, (CONTROL.F + CONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
+					lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R}
+				elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
+					BV.velocity = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (lCONTROL.F + lCONTROL.B)) + ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(lCONTROL.L + lCONTROL.R, (lCONTROL.F + lCONTROL.B + CONTROL.Q + CONTROL.E) * 0.2, 0).p) - workspace.CurrentCamera.CoordinateFrame.p)) * SPEED
+				else
+					BV.velocity = Vector3.new(0, 0, 0)
+				end
+				BG.cframe = workspace.CurrentCamera.CoordinateFrame
+			until not FLYING
+			CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+			lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+			SPEED = 0
+			BG:Destroy()
+			BV:Destroy()
+			if Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid') then
+				Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false
 			end
-			
-			-- Cleanup
-			if flyBodyVelocity then flyBodyVelocity:Destroy() end
-			if flyBodyGyro then flyBodyGyro:Destroy() end
 		end)
+	end
+	IYMouse.KeyDown:Connect(function(KEY)
+		if KEY:lower() == 'w' then
+			CONTROL.F = (vfly and vehicleflyspeed or flySpeed)
+		elseif KEY:lower() == 's' then
+			CONTROL.B = -(vfly and vehicleflyspeed or flySpeed)
+		elseif KEY:lower() == 'a' then
+			CONTROL.L = -(vfly and vehicleflyspeed or flySpeed)
+		elseif KEY:lower() == 'd' then
+			CONTROL.R = (vfly and vehicleflyspeed or flySpeed)
+		elseif KEY:lower() == 'e' then
+			CONTROL.Q = (vfly and vehicleflyspeed or flySpeed)*2
+		elseif KEY:lower() == 'q' then
+			CONTROL.E = -(vfly and vehicleflyspeed or flySpeed)*2
+		end
+		pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Track end)
+	end)
+	IYMouse.KeyUp:Connect(function(KEY)
+		if KEY:lower() == 'w' then
+			CONTROL.F = 0
+		elseif KEY:lower() == 's' then
+			CONTROL.B = 0
+		elseif KEY:lower() == 'a' then
+			CONTROL.L = 0
+		elseif KEY:lower() == 'd' then
+			CONTROL.R = 0
+		elseif KEY:lower() == 'e' then
+			CONTROL.Q = 0
+		elseif KEY:lower() == 'q' then
+			CONTROL.E = 0
+		end
+	end)
+	FLY()
+end
+
+function NOFLY()
+	FLYING = false
+	if Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid') then
+		Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false
+	end
+end
+
+-----------------------------
+-- ESP FUNCTION (FROM IY SOURCE)
+-----------------------------
+local ESPenabled = false
+
+function ESP(plr)
+	task.spawn(function()
+		for i,v in pairs(CoreGui:GetChildren()) do
+			if v.Name == plr.Name..'_ESP' then
+				v:Destroy()
+			end
+		end
+		wait()
+		if plr.Character and plr.Name ~= Players.LocalPlayer.Name and not CoreGui:FindFirstChild(plr.Name..'_ESP') then
+			local ESPholder = Instance.new("Folder")
+			ESPholder.Name = plr.Name..'_ESP'
+			ESPholder.Parent = CoreGui
+			repeat wait(1) until plr.Character and getRoot(plr.Character) and plr.Character:FindFirstChildOfClass("Humanoid")
+			for b,n in pairs (plr.Character:GetChildren()) do
+				if (n:IsA("BasePart")) then
+					local a = Instance.new("BoxHandleAdornment")
+					a.Name = plr.Name
+					a.Parent = ESPholder
+					a.Adornee = n
+					a.AlwaysOnTop = true
+					a.ZIndex = 10
+					a.Size = n.Size
+					a.Transparency = 0.3
+					a.Color = plr.TeamColor
+				end
+			end
+			if plr.Character and plr.Character:FindFirstChild('Head') then
+				local BillboardGui = Instance.new("BillboardGui")
+				local TextLabel = Instance.new("TextLabel")
+				BillboardGui.Adornee = plr.Character.Head
+				BillboardGui.Name = plr.Name
+				BillboardGui.Parent = ESPholder
+				BillboardGui.Size = UDim2.new(0, 100, 0, 150)
+				BillboardGui.StudsOffset = Vector3.new(0, 1, 0)
+				BillboardGui.AlwaysOnTop = true
+				TextLabel.Parent = BillboardGui
+				TextLabel.BackgroundTransparency = 1
+				TextLabel.Position = UDim2.new(0, 0, 0, -50)
+				TextLabel.Size = UDim2.new(0, 100, 0, 100)
+				TextLabel.Font = Enum.Font.SourceSansSemibold
+				TextLabel.TextSize = 20
+				TextLabel.TextColor3 = Color3.new(1, 1, 1)
+				TextLabel.TextStrokeTransparency = 0
+				TextLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+				TextLabel.Text = 'Name: '..plr.Name
+				TextLabel.ZIndex = 10
+				local espLoopFunc
+				local function espLoop()
+					if CoreGui:FindFirstChild(plr.Name..'_ESP') then
+						if plr.Character and getRoot(plr.Character) and plr.Character:FindFirstChildOfClass("Humanoid") and Players.LocalPlayer.Character and getRoot(Players.LocalPlayer.Character) and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+							local pos = math.floor((getRoot(Players.LocalPlayer.Character).Position - getRoot(plr.Character).Position).magnitude)
+							TextLabel.Text = 'Name: '..plr.Name..' | Health: '..math.floor(plr.Character:FindFirstChildOfClass('Humanoid').Health)..' | Studs: '..pos
+						end
+					else
+						espLoopFunc:Disconnect()
+					end
+				end
+				espLoopFunc = RunService.RenderStepped:Connect(espLoop)
+			end
+		end
+	end)
+end
+
+-----------------------------
+-- FLING FUNCTION (FROM IY SOURCE)
+-----------------------------
+local flinging = false
+
+function fling()
+	task.spawn(function()
+		local Char = Players.LocalPlayer.Character
+		local Hum = Char and Char:FindFirstChildOfClass("Humanoid")
+		local RootPart = Hum and Hum.RootPart
+
+		flinging = true
+		local BV = Instance.new("BodyAngularVelocity")
+		BV.Name = "Spinning"
+		BV.Parent = RootPart
+		BV.MaxTorque = Vector3.new(0, math.huge, 0)
+		BV.AngularVelocity = Vector3.new(0, 20000, 0)
+
+		while flinging and RootPart and BV.Parent do
+			task.wait()
+			Hum.PlatformStand = true
+			Hum.Sit = false
+		end
+
+		if BV then BV:Destroy() end
+		if Hum then
+			Hum.PlatformStand = false
+			Hum.Sit = false
+		end
+	end)
+end
+
+function unfling()
+	flinging = false
+	local Char = Players.LocalPlayer.Character
+	local RootPart = Char and getRoot(Char)
+	if RootPart then
+		for _, v in pairs(RootPart:GetChildren()) do
+			if v.Name == "Spinning" then
+				v:Destroy()
+			end
+		end
+	end
+end
+
+-----------------------------
+-- BUILD GUI
+-----------------------------
+IYMouse = Players.LocalPlayer:GetMouse()
+
+addLabel("Movement Controls")
+
+-- FLY
+addToggleButton("Fly Mode", 
+	function()
+		sFLY()
+		notify("Fly", "Enabled - WASD to move, Q/E for up/down")
 	end,
-	function() -- OFF
-		Config.FlyEnabled = false
-		if flyBodyVelocity then flyBodyVelocity:Destroy() end
-		if flyBodyGyro then flyBodyGyro:Destroy() end
+	function()
+		NOFLY()
 		notify("Fly", "Disabled")
 	end
 )
 
-addSlider("Fly Speed", 50, 300, 100, function(value)
-	Config.FlySpeed = value
+-- Fly Speed Slider
+addSlider("Fly Speed", 0.1, 5, 1, function(value)
+	flySpeed = value
 end)
 
-addLabel("Collision")
-
+-- NOCLIP
+local noclipConnection
 addToggleButton("Noclip",
-	function() -- ON
-		_G.Noclip = true
+	function()
+		Clip = false
 		notify("Noclip", "Enabled")
 		
 		if noclipConnection then
@@ -615,8 +675,8 @@ addToggleButton("Noclip",
 		
 		noclipConnection = RunService.Stepped:Connect(function()
 			pcall(function()
-				if _G.Noclip and LocalPlayer.Character then
-					for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+				if not Clip and Players.LocalPlayer.Character then
+					for _, v in pairs(Players.LocalPlayer.Character:GetDescendants()) do
 						if v:IsA("BasePart") then 
 							v.CanCollide = false 
 						end
@@ -625,8 +685,9 @@ addToggleButton("Noclip",
 			end)
 		end)
 	end,
-	function() -- OFF
-		_G.Noclip = false
+	function()
+		Clip = true
+		notify("Noclip", "Disabled")
 		
 		if noclipConnection then
 			noclipConnection:Disconnect()
@@ -634,24 +695,21 @@ addToggleButton("Noclip",
 		end
 		
 		pcall(function()
-			if LocalPlayer.Character then
-				for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+			if Players.LocalPlayer.Character then
+				for _, v in pairs(Players.LocalPlayer.Character:GetDescendants()) do
 					if v:IsA("BasePart") then 
 						v.CanCollide = true 
 					end
 				end
 			end
 		end)
-		
-		notify("Noclip", "Disabled")
 	end
 )
 
-addLabel("Speed Controls")
-
+-- Walk Speed Slider
 addSlider("Walk Speed", 16, 250, 16, function(value)
 	pcall(function()
-		local char = LocalPlayer.Character
+		local char = Players.LocalPlayer.Character
 		if char then
 			local hum = getHumanoid(char)
 			if hum then
@@ -661,9 +719,10 @@ addSlider("Walk Speed", 16, 250, 16, function(value)
 	end)
 end)
 
+-- Jump Power Slider
 addSlider("Jump Power", 50, 350, 50, function(value)
 	pcall(function()
-		local char = LocalPlayer.Character
+		local char = Players.LocalPlayer.Character
 		if char then
 			local hum = getHumanoid(char)
 			if hum then
@@ -673,208 +732,95 @@ addSlider("Jump Power", 50, 350, 50, function(value)
 	end)
 end)
 
------------------------------
--- PLAYER TAB
------------------------------
-currentTab = playerTab
+addLabel("Player Actions")
 
-addLabel("Health Management")
-
-addToggleButton("Loop Heal",
-	function() -- ON
-		_G.LoopHeal = true
-		notify("Loop Heal", "Enabled")
-		
-		task.spawn(function()
-			while _G.LoopHeal do
-				task.wait(0.1)
-				pcall(function()
-					if LocalPlayer.Character then
-						local hum = getHumanoid(LocalPlayer.Character)
-						if hum then 
-							hum.Health = hum.MaxHealth 
-						end
-					end
-				end)
+-- ESP
+addToggleButton("ESP (All Players)",
+	function()
+		ESPenabled = true
+		for _, plr in pairs(Players:GetPlayers()) do
+			if plr ~= Players.LocalPlayer then
+				ESP(plr)
 			end
-		end)
+		end
+		notify("ESP", "Enabled for all players")
 	end,
-	function() -- OFF
-		_G.LoopHeal = false
-		notify("Loop Heal", "Disabled")
+	function()
+		ESPenabled = false
+		for _, v in pairs(CoreGui:GetChildren()) do
+			if v.Name:match("_ESP$") then
+				v:Destroy()
+			end
+		end
+		notify("ESP", "Disabled")
 	end
 )
 
-addToggleButton("God Mode (Client)",
-	function() -- ON
-		pcall(function()
-			if LocalPlayer.Character then
-				local hum = getHumanoid(LocalPlayer.Character)
-				if hum then
-					hum.MaxHealth = math.huge
-					hum.Health = math.huge
-					notify("God Mode", "Enabled (client-side)")
-				end
-			end
-		end)
-	end,
-	function() -- OFF
-		pcall(function()
-			if LocalPlayer.Character then
-				local hum = getHumanoid(LocalPlayer.Character)
-				if hum then
-					hum.MaxHealth = 100
-					hum.Health = 100
-					notify("God Mode", "Disabled")
-				end
-			end
-		end)
-	end
-)
-
-addButton("Instant Heal", function()
-	pcall(function()
-		if LocalPlayer.Character then
-			local hum = getHumanoid(LocalPlayer.Character)
-			if hum then 
-				hum.Health = hum.MaxHealth 
-				notify("Heal", "Fully healed!")
-			end
-		end
-	end)
-end)
-
-addLabel("Character Modification")
-
-addSlider("Character Size", 0.5, 3, 1, function(value)
-	pcall(function()
-		local char = LocalPlayer.Character
-		if not char then return end
-		
-		local hum = getHumanoid(char)
-		if hum and r15(LocalPlayer) then
-			hum.BodyDepthScale.Value = value
-			hum.BodyHeightScale.Value = value
-			hum.BodyWidthScale.Value = value
-			hum.HeadScale.Value = value
-		end
-	end)
-end)
-
-addButton("Reset Character", function()
-	pcall(function()
-		if LocalPlayer.Character then
-			local hum = getHumanoid(LocalPlayer.Character)
-			if hum then
-				hum.Health = 0
-				notify("Reset", "Character reset")
-			end
-		end
-	end)
-end)
-
------------------------------
--- TELEPORT TAB
------------------------------
-currentTab = teleportTab
-
-addLabel("Player Teleportation")
-
+-- GOTO
 local gotoBox = addBox("Enter Player Name")
 
-addToggleButton("Loop Goto Player",
-	function() -- ON
-		_G.loopGoto = true
-		notify("Loop Goto", "Enabled")
-		
-		task.spawn(function()
-			while _G.loopGoto do
-				task.wait(0.2)
-
-				local targetName = gotoBox.Text:lower()
-				if targetName == "" then continue end
-				
-				for _, p in pairs(Players:GetPlayers()) do
-					if p.Name:lower():find(targetName) and p ~= LocalPlayer then
-						pcall(function()
-							if not p.Character then return end
-							
-							local tRoot = getRoot(p.Character)
-							local root = getRoot(LocalPlayer.Character)
-							
-							if root and tRoot then
-								root.CFrame = tRoot.CFrame * CFrame.new(0, 3, 0)
-							end
-						end)
-						break
-					end
-				end
-			end
-		end)
-	end,
-	function() -- OFF
-		_G.loopGoto = false
-		notify("Loop Goto", "Disabled")
-	end
-)
-
-addButton("Teleport Once", function()
-	local targetName = gotoBox.Text:lower()
+addButton("Goto Player", function()
+	local targetName = gotoBox.Text
 	if targetName == "" then 
 		notify("Error", "Enter a player name")
 		return 
 	end
 	
-	for _, p in pairs(Players:GetPlayers()) do
-		if p.Name:lower():find(targetName) and p ~= LocalPlayer then
-			pcall(function()
-				if not p.Character then return end
-				
-				local tRoot = getRoot(p.Character)
-				local root = getRoot(LocalPlayer.Character)
+	local players = getPlayer(targetName, Players.LocalPlayer)
+	if #players > 0 then
+		local targetPlayer = players[1]
+		pcall(function()
+			if targetPlayer.Character then
+				local tRoot = getRoot(targetPlayer.Character)
+				local root = getRoot(Players.LocalPlayer.Character)
 				
 				if root and tRoot then
 					root.CFrame = tRoot.CFrame * CFrame.new(0, 3, 0)
-					notify("Teleport", "Teleported to " .. p.Name)
+					notify("Teleport", "Teleported to " .. targetPlayer.Name)
 				end
-			end)
-			return
-		end
-	end
-	notify("Error", "Player not found")
-end)
-
-addLabel("Position Teleportation")
-
-local xBox = addBox("X Position")
-local yBox = addBox("Y Position")
-local zBox = addBox("Z Position")
-
-addButton("Teleport to Coordinates", function()
-	local x = tonumber(xBox.Text)
-	local y = tonumber(yBox.Text)
-	local z = tonumber(zBox.Text)
-	
-	if not x or not y or not z then
-		notify("Error", "Invalid coordinates")
-		return
-	end
-	
-	pcall(function()
-		if LocalPlayer.Character then
-			local root = getRoot(LocalPlayer.Character)
-			if root then
-				root.CFrame = CFrame.new(x, y, z)
-				notify("Teleport", "Teleported to coordinates")
 			end
-		end
-	end)
+		end)
+	else
+		notify("Error", "Player not found: " .. targetName)
+	end
 end)
 
------------------------------
--- MISC TAB
------------------------------
-currentTab = miscTab
+-- LOOP GOTO
+local loopGotoEnabled = false
+addToggleButton("Loop Goto Player",
+	function()
+		loopGotoEnabled = true
+		notify("Loop Goto", "Enabled")
+		
+		task.spawn(function()
+			while loopGotoEnabled do
+				task.wait(0.2)
+
+				local targetName = gotoBox.Text
+				if targetName == "" then continue end
+				
+				local players = getPlayer(targetName, Players.LocalPlayer)
+				if #players > 0 then
+					local targetPlayer = players[1]
+					pcall(function()
+						if targetPlayer.Character then
+							local tRoot = getRoot(targetPlayer.Character)
+							local root = getRoot(Players.LocalPlayer.Character)
+							
+							if root and tRoot then
+								root.CFrame = tRoot.CFrame * CFrame.new(0, 3, 0)
+							end
+						end
+					end)
+				end
+			end
+		end)
+	end,
+	function()
+		loopGotoEnabled = false
+		notify("Loop Goto", "Disabled")
+	end
+)
 
 addLabel("Animations")
 
@@ -888,8 +834,8 @@ addButton("Play Animation", function()
 	end
 	
 	pcall(function()
-		if LocalPlayer.Character then
-			local hum = getHumanoid(LocalPlayer.Character)
+		if Players.LocalPlayer.Character then
+			local hum = getHumanoid(Players.LocalPlayer.Character)
 			if hum then
 				local animator = hum:FindFirstChildOfClass("Animator")
 				if not animator then
@@ -904,19 +850,15 @@ addButton("Play Animation", function()
 				animTrack:Play()
 				
 				notify("Animation", "Playing animation: " .. id)
-			else
-				notify("Error", "Humanoid not found")
 			end
-		else
-			notify("Error", "Character not found")
 		end
 	end)
 end)
 
 addButton("Stop All Animations", function()
 	pcall(function()
-		if LocalPlayer.Character then
-			local hum = getHumanoid(LocalPlayer.Character)
+		if Players.LocalPlayer.Character then
+			local hum = getHumanoid(Players.LocalPlayer.Character)
 			if hum then
 				local animator = hum:FindFirstChildOfClass("Animator")
 				if animator then
@@ -930,84 +872,99 @@ addButton("Stop All Animations", function()
 	end)
 end)
 
-addLabel("Environment")
+addLabel("Fling / Combat")
 
-addSlider("Time of Day", 0, 24, 12, function(value)
-	pcall(function()
-		game:GetService("Lighting").ClockTime = value
-	end)
-end)
+-- FLING
+addToggleButton("Fling (Touch Players)",
+	function()
+		fling()
+		notify("Fling", "Enabled - Touch players to fling them")
+	end,
+	function()
+		unfling()
+		notify("Fling", "Disabled")
+	end
+)
 
-addSlider("Brightness", 0, 5, 1, function(value)
-	pcall(function()
-		game:GetService("Lighting").Brightness = value
-	end)
-end)
+-- FLING SPECIFIC PLAYER
+local flingPlayerBox = addBox("Player to Fling")
 
-addButton("Remove Fog", function()
-	pcall(function()
-		local lighting = game:GetService("Lighting")
-		lighting.FogEnd = 100000
-		lighting.FogStart = 0
-		notify("Environment", "Fog removed")
-	end)
-end)
-
-addLabel("Utility")
-
-addButton("Rejoin Server", function()
-	pcall(function()
-		local ts = game:GetService("TeleportService")
-		local p = game:GetService("Players").LocalPlayer
-		ts:Teleport(game.PlaceId, p)
-	end)
-end)
-
-addButton("Server Hop", function()
-	pcall(function()
-		local Http = game:GetService("HttpService")
-		local TPS = game:GetService("TeleportService")
-		local Api = "https://games.roblox.com/v1/games/"
+addButton("Fling Specified Player", function()
+	local targetName = flingPlayerBox.Text
+	if targetName == "" then 
+		notify("Error", "Enter a player name")
+		return 
+	end
+	
+	local players = getPlayer(targetName, Players.LocalPlayer)
+	if #players > 0 then
+		local targetPlayer = players[1]
 		
-		local _place = game.PlaceId
-		local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
+		-- Start fling
+		fling()
 		
-		local function ListServers()
-			local Raw = game:HttpGet(_servers)
-			local Body = Http:JSONDecode(Raw)
-			return Body.data
+		-- Teleport to player repeatedly while flinging
+		task.spawn(function()
+			for i = 1, 30 do
+				if not flinging then break end
+				
+				pcall(function()
+					if targetPlayer.Character then
+						local tRoot = getRoot(targetPlayer.Character)
+						local root = getRoot(Players.LocalPlayer.Character)
+						
+						if root and tRoot then
+							root.CFrame = tRoot.CFrame
+						end
+					end
+				end)
+				
+				task.wait(0.1)
+			end
+			
+			-- Stop flinging after 3 seconds
+			unfling()
+			notify("Fling", "Completed fling on " .. targetPlayer.Name)
+		end)
+		
+		notify("Fling", "Flinging " .. targetPlayer.Name)
+	else
+		notify("Error", "Player not found: " .. targetName)
+	end
+end)
+
+addLabel("Utilities")
+
+addButton("Respawn", function()
+	pcall(function()
+		local char = Players.LocalPlayer.Character
+		if char then
+			local hum = getHumanoid(char)
+			if hum then
+				hum.Health = 0
+				notify("Respawn", "Respawning...")
+			end
 		end
-		
-		local servers = ListServers()
-		if #servers > 0 then
-			TPS:TeleportToPlaceInstance(_place, servers[math.random(1, #servers)].id, LocalPlayer)
-		end
-		
-		notify("Server Hop", "Finding new server...")
 	end)
 end)
 
-addButton("Copy Game ID", function()
+addButton("Reset Camera", function()
 	pcall(function()
-		setclipboard(tostring(game.PlaceId))
-		notify("Clipboard", "Game ID copied: " .. game.PlaceId)
-	end)
-end)
-
-addButton("Copy User ID", function()
-	pcall(function()
-		setclipboard(tostring(LocalPlayer.UserId))
-		notify("Clipboard", "User ID copied: " .. LocalPlayer.UserId)
+		workspace.CurrentCamera.CameraSubject = Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+		Players.LocalPlayer.CameraMaxZoomDistance = 400
+		Players.LocalPlayer.CameraMinZoomDistance = 0.5
+		notify("Camera", "Camera reset")
 	end)
 end)
 
 -----------------------------
--- HOTKEY TOGGLE SYSTEM
+-- HOTKEY TOGGLE
 -----------------------------
 UIS.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	
-	if input.KeyCode == Config.ToggleKey then
+	if input.KeyCode == Enum.KeyCode.RightShift then
 		main.Visible = not main.Visible
 		if main.Visible then
 			notify("Menu", "Opened")
@@ -1018,26 +975,20 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -----------------------------
--- CLEANUP ON CHARACTER RESPAWN
+-- CLEANUP ON RESPAWN
 -----------------------------
-LocalPlayer.CharacterAdded:Connect(function()
-	-- Reset all toggles
-	Config.FlyEnabled = false
-	_G.Noclip = false
-	_G.LoopHeal = false
-	_G.loopGoto = false
+Players.LocalPlayer.CharacterAdded:Connect(function()
+	NOFLY()
+	flinging = false
+	Clip = true
 	
-	-- Cleanup connections
 	if noclipConnection then
 		noclipConnection:Disconnect()
 		noclipConnection = nil
 	end
-	
-	if flyBodyVelocity then flyBodyVelocity:Destroy() end
-	if flyBodyGyro then flyBodyGyro:Destroy() end
 end)
 
 -----------------------------
 -- INITIAL LOAD
 -----------------------------
-notify("Clifford's Menu", "Loaded successfully! Press RightShift to toggle", 5)
+notify("Clifford's Admin", "Loaded v5.0 with IY Integration! Press RightShift to toggle", 5)
